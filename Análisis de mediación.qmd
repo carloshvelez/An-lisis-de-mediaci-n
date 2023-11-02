@@ -1,0 +1,332 @@
+---
+title: "Análisis de mediación"
+author: "Todos"
+format: docx
+editor: visual
+---
+
+# Análisis de mediación
+
+Es un análisis estadístico que se usa para explicar los mecanismos subyacentes que intervienen en la relación entre una variable independiente (x) y una variable dependiente (y) a través de una o varias variables intervinientes o mediadoras (m).
+
+Dicho de otra manera, uso análisis de mediación si quiero probar que x ejerce efectos sobre y, cuando m está causalmente localizada entre x e y. **En este caso, m es el mecanismo a través del cual x influye sobre y. Variaciones en x, causan variación en uno o más mediadores, lo que a su vez causa variación en y.**
+
+![Hayes (2022). Introduction to mediation, moderation and conditional process analysis. p. 6](analisis%20de%20mediacion_files/images/analisis_mediacion1.png)
+
+Para empezar, cargaremos nuestra base de datos, previa carga de los paquetes que necesitaremos:
+
+```{r}
+packages <- c("mediation", "ggplot2", "apaTables", "broom", "bda", "DiagrammeR", "lavaan", "semPlot", "rempsyc")
+
+for (package in packages) {
+  if (!require(package, character.only = TRUE)) {
+    install.packages(package)
+    library(package, character.only = TRUE)
+  }
+}
+
+df <- read.csv("archivos/base_calificada.csv", header = TRUE, row.names=1)
+```
+
+## Un ejemplo:
+
+Exposición a ideales delgados a través de los medios de comunicación son un factor de riesgo para insatisfacción con el cuerpo en mujeres; esto se da gracias a que la exposición al modelo delgado da lugar a la internalización de normas en relación con la belleza y el cuerpo delgado (Lopez-Guimera et al., 2010).
+
+En el ejemplo anterior:
+
+X = Exposición a modelos delgados a través de medios masivos.
+
+Y = Insatisfacción con el cuerpo.
+
+M = Internalización de normas.
+
+Así, la exposición da lugar a mayor internalización, y la internalización da lugar a mayor insatisfacción con el cuerpo.
+
+El análisis estadístico considera dos rutas: Una directa, desde x hacia y, y otras indirecta, a través de M.
+
+## El análisis de mediación se diferencia de la moderación
+
+El análisis de moderación se centra en explicar cómo los niveles en los moderadores (W), afectan la relación entre x e y.
+
+![Hayes (2022). Introduction to mediation, moderation and conditional process analysis. p. 8](analisis%20de%20mediacion_files/images/moderacion1.png)
+
+La diferencia es que la mediación intenta explicar cómo una variable afecta a otra a través de una tercera, mientras que la moderación analiza cómo el efecto de x sobre y cambia en función de los niveles de moderadores (w).
+
+El análisis estadístico mide los efectos de x sobre y, a lo largo de varios niveles de w.
+
+## Estos estudios no son causales
+
+Para que un estudio sea causal, debe cumplir tres criterios:
+
+1.  Covariación.
+2.  Ordenamiento temporal.
+3.  Eliminación de explicaciones alternativas.
+
+Para lograr lo anterior, se requiere la manipulación de variables. Estos estudios suelen ser transeccionales y descriptivos; por lo tanto no son causales. Sin embargo, es cierto que, con base en estos, se suelen hacer inferencias causales.
+
+## El modelo de mediación más simple.
+
+El modelo más simple consiste en la especificación de una variable X, un Y y una M; tal como se vió en la figura anterior:
+
+![](analisis%20de%20mediacion_files/images/analisis_mediacion1.png){width="336"}
+
+En este esquema, hay dos caminos a través de los cuales X influye sobre Y: el directo y el indirecto a través de M.
+
+Comprender estos modelos simples permite comprender sus principio y aplicarlos a modelos menos simples.
+
+En nuestra base vamos a usar como variable x, las experiencias adversas, como variable y, la calidad de vida, y como variable m, los síntomas emocionales. Este modelo simple estaría estableciendo que las experiencias adversas tienen un efecto en la calidad de vida, en la medida que estas producen cambios en los síntomas emocionales y posteriormente los síntomas emocionales producen cambios en la calidad de vida.
+
+```{r}
+x <- "expad_total"
+y <- "swls_total"
+m <- "dass_total"
+```
+
+### Sobre la necesidad de que x e y estén correlacionados:
+
+Tradicionalmente se ha considerado que es necesario que x e y estén correlacionados. Esto tiene sentido, pues hemos visto que uno de los prerrequisitos de las relaciones causales es que haya covariación. No obstante, autores contemporáneos han establecido que la falta de correlación no es prueba de ausencia de causalidad, y que la correlación no se ni necesaria ni suficiente para que haya causalidad. En ese escenario, se encuentran dos posiciones en la literatura:
+
+-   Posición clásica: se requiere correlación entre x e y.
+
+-   Posición contemporánea: no se requiera correlación entre x e y.
+
+```{r}
+apa.cor.table(df[c(x,y)], table.number = 1)
+
+```
+
+Suponiendo que asumimos la posición clásica, concluiríamos que se puede hacer el análisis, puesto que hay correlación negativa (baja) entre ambas variables.
+
+## Un modelo de mediación tiene tres componentes
+
+1.  Efecto de la variable independiente (x) sobre la variable mediadora (M).
+2.  Efecto de la variable mediadora (M) sobre la variable dependiente (Y), controlando la variable independiente.
+3.  Efecto total de la variable independiente (X) sobre la variable dependiente (Y).
+
+Nuestro interés primario será estimar e interpretar los efetos directos (componente 3) e indirectos (componentes 1 y 2).
+
+Para hacer esto, se debe estimar los componentes constituyentes de los efectos indirectos; es decir, los efectos de x sobre m, así como los efectos de m sobre y.
+
+Lo que se ve en esta imagen:
+
+![](analisis%20de%20mediacion_files/images/mediacion2.png){fig-align="center" width="383"}
+
+En términos estadísticos resulta siendo el establecimiento de estos dos modelos de regresión:
+
+$$
+M = i_M+aX+e_M
+$$ {#eq-M}
+
+$$
+Y = i_Y+c'X+bM+e_Y
+$$
+
+También se suele calcular un efecto total, que es la suma de los directos y los indirectos.
+
+## Ejemplo de análisis de mediación
+
+En nuestro análisis, así será el modelo:
+
+| Variables predictora | Mediador | Variable resultado |
+|----------------------|----------|--------------------|
+| EXPAD                | Síntomas | Calidad de vida    |
+
+```{r}
+DiagrammeR("
+           graph LR
+           EXPAD-->DASS
+           DASS-->SWLS
+           EXPAD-->SWLS
+           ")
+```
+
+A continuación vamos a calcular tres modelos de regresión:
+
+1.  aquel que predice los síntomas con base en el expad.
+2.  Aquel que predice la calidad de vida con base en el expad+los síntomas.
+3.  Aquel que predice la calidad de vida con base en el expad
+
+```{r}
+x_m <- lm(dass_total~expad_total, data=df)
+y_x_m <- lm(swls_total~expad_total+dass_total, data=df)
+x_y <- lm(swls_total~expad_total, data=df)
+
+```
+
+``` {.mermaid .mermaid}
+```
+
+### Analizando la relación entre X y M (Expad y Síntomas)
+
+El modelo que analiza esa relación es el primero:
+
+```{r}
+apa.reg.table(x_m)
+```
+
+Lo que nos dice es que hay un coeficiente estadísticamente significativo de 2.3. Quiere decir que, por cada punto que aumente Expad, se aumentará 2.30 puntos los sintomas emocionales.
+
+## Analizando la relación entre M y Y y entre X y Y:
+
+Para analizar estas dos relaciones, se corrió el segundo modelo:
+
+```{r}
+apa.reg.table(y_x_m)
+```
+
+Los coeficientes, también significativos, muestran que, en la medida que los síntomas se mantengan constantes, cuando expad sube un punto, la calidad de vida baja 0.27.
+
+También nos dice que, en la medida que expad se mantenga constante, cuando los síntomas suben un punto, la calidad de vida de vida baja 0.22 puntos.
+
+En ese escenario las cosas quedaríán así:
+
+![](analisis%20de%20mediacion_files/images/mediacion3.png)
+
+El efecto indirecto se cuantifica multiplicando los efectos de x sobre m (a) y de m sobre y (b)
+
+$$
+EfectoIndirecto = a*b = 2.30*-0.22 = -0.506 
+$$
+
+Esto implica que, cuando las experiencias adversas suben un punto y, a su vez, los síntomas emocionales suben otro punto, la calidad de vida se disminuye en 0.506 puntos.
+
+El efecto directo estimado es el marcado por c\`: 0.27
+
+$$
+EfectoDirecto = -0.27
+$$
+
+El efecto total se puede derivar de sumar los efectos directos e indirectos:
+
+$$
+EfectoTotal = EfectoIndirecto + EfectoDirecto = -0.506+(-0.27) = -0.
+776
+$$
+
+Esto es lo mismo que cuando calculamos la regresión lineal sin tener en cuenta el mediador:
+
+```{r}
+apa.reg.table(x_y)
+```
+
+## La interpretación de las tres ecuaciones.
+
+La estrategia clásica establecida por Baron y Kenny (1986), postula que debemos interpretar las tres ecuaciones y definir si hubo mediación de la siguiente manera:
+
+-   a y b deben ser estadísticamente significativas.
+
+-   b debe ser mayor que c\`.
+
+-   c (efecto indirecto), debe ser mayor que c\`(efecto directo).
+
+Para este caso, se cumplen los criterios 1 y 3. El criterio tres es el más importante.
+
+El problema con esta interpretación es que no considera un cálculo para el efecto indirecto; solo se estima desde la multiplicación de a \* b cuando son estadísticamente significativos. Por esa razon se han planteado otras opciones como el teste de Sobel.
+
+## Test de sobel
+
+Es la estrategia de productos de coeficientes, que permite estimar el coeficiente indirecto y un valor de significancia estadística. Esto nos permitiría rechazar la hipótesis nula. Su mayor problema es que asume distribución normal en el estadístico (lo cual ha sido criticado) y tamaño grande de muestra. No obstante, probaremos con el test de sobel:
+
+```{r}
+round(mediation.test(mv=df$dass_total, iv=df$expad_total, dv=df$swls_total),3)
+```
+
+El test de sobel da cuenta de significancia estadística para la mediación, así que se puede afirmar que los síntomas emocionales median en la relación entre las experiencias adversas y la calidad de vida.
+
+## La propuesta de Hayes.
+
+Hayes (2022), propone un método adicional, mediante bootstraping.
+
+Para desarrollar este método ha creado plugins para spss, sas y R. Para desarrollar este análisis se descargó el plugin de esta dirección: https://www.afhayes.com/public/processv43.zip
+
+Este se abre en r studio y se corre como cualquier otro script, luego permite usar la función process().
+
+La interpretación de Hayes es que el intervalo de confianza para el efecto indirecto debe contener números diferentes a 0.
+
+En el cálculo de Hayes se presentan las regresiones que ya se han mostrado arriba y luego el cálculo para los efectos directos e indirectos; allí se encontrará el intervalo de confianza, así:
+
+```{r}
+process(
+  data=df,
+  x = "expad_total",
+  y = "swls_total",
+  m = "dass_total",
+  model = 4
+)
+
+```
+
+## Usando lavaan:
+
+Para lavaan tendremos que especificar las ecuaciones de la siguiente manera (usaremos el gráfico para guiarnos:
+
+![](analisis%20de%20mediacion_files/images/mediacion3.png){width="345"}
+
+-   La regresión para y, que es equivalante a c por *x + b por* m
+
+$$
+y = c*x + b*m
+$$
+
+-   La ecuación para m, que es equivalante a a\*x
+
+    $$
+    m=a*x
+    $$
+
+-   El efecto indirecto:
+
+    $$
+    EfectoIndirecto = a*b
+    $$
+
+-   Y el efecto total:
+
+    $$
+    EfectoTotal = (a*b)+c
+    $$
+
+Por supuesto, en la sintaxis de lavaan:
+
+```{r}
+modelo <- '# regresión para y
+swls_total ~ b*dass_total + c*expad_total
+
+# regresión para m
+dass_total ~ a*expad_total
+
+# Descomposición del efecto:
+#Efecto indirecto
+ind_x_m_y := a*b
+#efecto total
+tot_x_y := ind_x_m_y + c
+'
+
+resultados <- lavaan::sem(modelo, data=df)
+summary(resultados)
+```
+
+Lavaan nos ofrece el mismo estimado para la relación indireta (-0.514) y además ofrece un p valor para esta relación.
+
+También podemos obtener los intervalos de confianza, los cuales resultan muy cercanos a la propuesta de Hayes.
+
+```{r}
+parameterestimates(resultados)[c(1:3, 9, 10)]
+```
+
+## En resumen
+
+El análisis de mediación establece si x influye sobre y a través de una variable mediadora m.
+
+Para establecer esto, se calculan coeficientes de regresión para m, con el predictor como x, y para "y", con los predictores x y m.
+
+De estas regresiones se obtiene a, b y c', que posteriormente permiten calcular un efecto indirecto (a*b) y un efecto total (a*b+c'). Todos estos datos se pueden analizar, aunque lo más interesante es verificar que el efecto indirecto (a\*b) sea significativo, el intervalo de confianza para el estimado no incluya el 0, y, ojalá, sea más alto que el efecto directo.
+
+```{r}
+semPaths(resultados, whatLabels = "est.std", rotation=2)
+```
+
+```{r}
+modelo2=
+  
+```
